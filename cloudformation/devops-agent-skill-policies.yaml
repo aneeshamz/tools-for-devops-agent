@@ -158,7 +158,7 @@ Parameters:
       Amazon FSx for NetApp ONTAP Operational Review skill (read-only: adds
       fsx:Describe*/ListTagsForResource, cloudwatch metric/alarm reads,
       backup:ListProtectedResources/ListRecoveryPointsByResource, and
-      ec2:DescribeSecurityGroups/Subnets/RouteTables).
+      ec2:DescribeSecurityGroups/NetworkInterfaces/Subnets/RouteTables).
     AllowedValues: ['true', 'false']
     Default: 'true'
 
@@ -646,6 +646,7 @@ Resources:
               - backup:ListProtectedResources
               - backup:ListRecoveryPointsByResource
               - ec2:DescribeSecurityGroups
+              - ec2:DescribeNetworkInterfaces
               - ec2:DescribeSubnets
               - ec2:DescribeRouteTables
             Resource: '*'
@@ -679,7 +680,7 @@ Outputs:
         - agentcore-ops-review: ${EnableAgentCoreOpsReview} (bedrock-agentcore read-only List/Get for runtimes/memories/gateways/browsers/code-interpreters/workload-identities, ec2:DescribeSubnets)
         - config-cost-optimization Athena add-on: ${EnableConfigAthenaCiAnalysis} (athena:StartQueryExecution/GetQueryExecution/GetQueryResults, s3:GetObject on the Config data bucket; also needs an Athena-managed-results workgroup. Glue reads and athena:GetWorkGroup are already in the managed policy)
         - sagemaker-ai-ops-review: ${EnableSageMakerAIOpsReview} (savingsplans:DescribeSavingsPlans)
-        - aws-fsxn-operations-review: ${EnableAwsFsxnOperationsReview} (fsx:Describe*/ListTagsForResource, cloudwatch:DescribeAlarms/GetMetricData/GetMetricStatistics/ListMetrics, backup:ListProtectedResources/ListRecoveryPointsByResource, ec2:DescribeSecurityGroups/Subnets/RouteTables)
+        - aws-fsxn-operations-review: ${EnableAwsFsxnOperationsReview} (fsx:Describe*/ListTagsForResource, cloudwatch:DescribeAlarms/GetMetricData/GetMetricStatistics/ListMetrics, backup:ListProtectedResources/ListRecoveryPointsByResource, ec2:DescribeSecurityGroups/NetworkInterfaces/Subnets/RouteTables)
       Skills covered by AIDevOpsAgentAccessPolicy (no extra policy needed):
         - aws-eks-operations-review, eks-upgrade-readiness, enrich-with-aws-security-agent, crm-production-investigation-guidelines
         - cloudtrail-cost-optimization, config-cost-optimization, guardduty-cost-optimization (ce:Get* and s3:GetLifecycleConfiguration already granted on * by the managed policy)

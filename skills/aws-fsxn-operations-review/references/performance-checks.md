@@ -9,12 +9,14 @@
 ### PERF-01 — CPU utilization below 85%
 
 - **Severity**: Critical
-- **API**: `cloudwatch get-metric-data` — `CPUUtilization` (`Maximum`), dim `FileSystemId`
-- **Logic**: Evaluate peak CPU over the window.
-- **Status**: Pass — CPU < 85%. Fail — CPU ≥ 85%.
+- **API**: `cloudwatch get-metric-data` — `CPUUtilization`, dim `FileSystemId`. Read a **sustained**
+  statistic (`p95`, or `Average`) over the window — **not `Maximum`**: a single one-minute spike is not
+  a finding.
+- **Logic**: Evaluate **sustained** CPU (p95) over the window; a brief transient peak does not fail.
+- **Status**: Pass — sustained (p95) CPU < 85%. Fail — sustained (p95) CPU ≥ 85%.
 - **Recommendation (Fail)**: Investigate CPU consumers; consider adding HA pairs to add compute. Sustained
   high CPU raises latency across all volumes on the file system.
-- **Fields**: `fileSystemId`, `cpuMaxPct`, `status`, `severity`
+- **Fields**: `fileSystemId`, `cpuP95Pct`, `cpuMaxPct`, `status`, `severity`
 
 ### PERF-02 — Throughput configuration matches workload
 
@@ -41,12 +43,20 @@
 ### PERF-04 — IOPS utilization below 80%
 
 - **Severity**: High
-- **API**: `cloudwatch get-metric-data` — `FileServerDiskIopsUtilization` (`Maximum`), dim `FileSystemId`
-- **Logic**: Evaluate peak disk IOPS utilization over the window.
-- **Status**: Pass — < 80%. Warning — 80–90%. Fail — > 90%.
-- **Recommendation (Fail/Warning)**: Increase provisioned IOPS or investigate write amplification
-  (ONTAP writes in 4 KB blocks — a 1 MB write becomes 256 physical IOPS).
-- **Fields**: `fileSystemId`, `iopsUtilMaxPct`, `status`, `severity`
+- **API**: `cloudwatch get-metric-data` — `FileServerDiskIopsUtilization` **and** `DiskIopsUtilization`,
+  dim `FileSystemId`. Read a **sustained** statistic (`p95`, or `Average`) over the window — **not
+  `Maximum`**: a single one-minute spike is not a finding.
+- **Logic**: Evaluate **sustained** utilization of **both** metrics and identify the actual bottleneck
+  before recommending anything. `FileServerDiskIopsUtilization` reflects the **file-server
+  (throughput-capacity tier)** limit; `DiskIopsUtilization` reflects the **provisioned SSD disk IOPS**
+  limit. The constraint is whichever is saturated — they are not interchangeable.
+- **Status**: Pass — both < 80% (sustained). Warning — either 80–90%. Fail — either > 90% (sustained).
+- **Recommendation (Fail/Warning)**: Base the recommendation on **which** metric is saturated. If
+  `DiskIopsUtilization` is the limit, increase **provisioned SSD IOPS**. If `FileServerDiskIopsUtilization`
+  is the limit, the **throughput-capacity tier** is the constraint (not SSD IOPS) — increase throughput
+  capacity or add HA pairs; raising provisioned SSD IOPS will not help. Also investigate write
+  amplification (ONTAP writes in 4 KB blocks — a 1 MB write becomes 256 physical IOPS).
+- **Fields**: `fileSystemId`, `fileServerIopsUtilP95Pct`, `diskIopsUtilP95Pct`, `bottleneck`, `status`, `severity`
 
 ### PERF-05 — SSD capacity below 80%
 
@@ -131,12 +141,20 @@
 ### PERF-17 — Capacity-pool tiering only for archive data
 
 - **Severity**: Critical
-- **API**: `fsx describe-volumes` (`OntapConfiguration.TieringPolicy.Name`, `OntapVolumeType`)
-- **Logic**: Flag RW volumes with `TieringPolicy = ALL`.
-- **Status**: Pass — no active RW volume uses `ALL`. Fail — an RW volume uses `ALL`.
-- **Recommendation (Fail)**: `ALL` tiering on an active volume forces every read from the capacity pool
-  (15–25 ms). Change to `AUTO` or `NONE` for active data; reserve `ALL` for archive/migration.
-- **Fields**: `volumeId`, `tieringPolicy`, `ontapVolumeType`, `status`, `severity`
+- **API**: `fsx describe-volumes` (`OntapConfiguration.TieringPolicy.Name`, `OntapVolumeType`) +
+  `cloudwatch get-metric-data` (`CapacityPoolReadBytes`, dims `FileSystemId`, `VolumeId`)
+- **Logic**: Identify RW volumes with `TieringPolicy = ALL`, then **confirm active capacity-pool reads
+  before flagging**. `ALL` is a legitimate choice for a true archive/cold volume, so the policy alone is
+  not a finding — only fail when the volume shows `CapacityPoolReadBytes > 0` (reads actually being
+  served from the capacity pool at 15–25 ms).
+- **Status**: Pass — no RW `ALL` volume shows active capacity-pool reads. Informational — RW volume uses
+  `ALL` with no observed capacity-pool reads (likely a genuine archive volume). Fail — RW volume uses
+  `ALL` **and** shows observed `CapacityPoolReadBytes > 0`. No `CapacityPoolReadBytes` datapoints ⇒
+  **Not evaluated — no datapoints**.
+- **Recommendation (Fail)**: Active reads are being served from the capacity pool (15–25 ms). Change to
+  `AUTO` or `NONE` for this active data; reserve `ALL` for true archive/migration volumes with no active
+  read traffic.
+- **Fields**: `volumeId`, `tieringPolicy`, `ontapVolumeType`, `capacityPoolReadBytesPerHr`, `status`, `severity`
 
 ### PERF-18 — HA pair count sufficient
 
@@ -152,15 +170,16 @@
 ### PERF-19 — FlexClone not referencing tiered parent data
 
 - **Severity**: High
-- **API**: `fsx describe-volumes` (clone volumes whose parent uses `AUTO`/`ALL` tiering) +
-  `cloudwatch get-metric-data` (`CapacityPoolReadBytes` on the parent)
-- **Logic**: Flag FlexClone volumes whose parent volume uses `AUTO`/`ALL` tiering and shows
-  `CapacityPoolReadBytes > 0`.
-- **Status**: Pass — no clone references tiered parent data. Fail — clone of a tiered parent with active
-  capacity-pool reads.
-- **Recommendation (Fail)**: FlexClone on tiered parent data has no read-ahead — per-block S3 fetches at
-  15–25 ms. Restore from backup instead, or promote the parent's tiered data first.
-- **Fields**: `volumeId`, `parentVolumeId`, `parentTieringPolicy`, `capacityPoolReadBytes`, `status`, `severity`
+- **API**: *Not available via public API.* `fsx describe-volumes` does **not** expose a FlexClone
+  volume's parent volume, so a clone cannot be matched to its parent's tiering from observed data.
+- **Logic**: The clone→parent relationship is not returned by any public AWS API, so this condition
+  cannot be evaluated from observed data (Evidence Guardrail: do not infer parentage from volume names).
+- **Status**: **Not evaluated — not available via public API.** Never report a Pass here (absence of
+  evidence is not proof no clone references tiered data).
+- **Recommendation**: None assessable via public API. As general guidance, a FlexClone of a volume whose
+  data is tiered to the capacity pool has no read-ahead; verify clone parentage and tiering from the
+  ONTAP CLI/console if clone read latency is a concern.
+- **Fields**: `volumeId`, `status`, `severity`
 
 ### PERF-21 — No unexpected capacity-pool reads on active volumes
 

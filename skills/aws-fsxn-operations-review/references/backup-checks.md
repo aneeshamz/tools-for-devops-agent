@@ -28,18 +28,22 @@
   every protected volume.
 - **Fields**: `resourceArn`, `recoveryPointCount`, `latestRecoveryPointAge`, `status`, `severity`
 
-### BKP-03 — SnapMirror (DP) relationships exist
+### BKP-03 — SnapMirror (DP) relationships
 
-- **Severity**: High
+- **Severity**: Informational
 - **API**: `fsx describe-volumes`
-- **Logic**: Count DP volumes (`OntapConfiguration.OntapVolumeType = DP`) and compare to production RW
-  volumes. DP volumes are the destination endpoints of SnapMirror relationships and are visible via the
-  public FSx API; relationship *health and lag* are not exposed by AWS APIs and are out of scope for
-  this review.
-- **Status**: Pass — all production RW volumes have corresponding DP volumes. Warning — at least one DP
-  volume exists but not all RW volumes are covered. Fail — no DP volumes found.
-- **Recommendation (Fail/Warning)**: No/partial DP coverage — SnapMirror may not be configured for all
-  production data. Ensure each production volume has a replication relationship.
+- **Logic**: Count DP volumes (`OntapConfiguration.OntapVolumeType = DP`) **on the in-scope file
+  systems** and report them. DP volumes are the destination endpoints of SnapMirror relationships. **A
+  healthy DR design normally places the SnapMirror destination on a *different* file system — often in
+  another Region or account — which this review may not have in scope.** The absence of DP volumes on
+  the source file system is therefore **not** a finding: it usually means the destination lives
+  elsewhere, not that replication is missing. Relationship *health and lag* are not exposed by public
+  AWS APIs.
+- **Status**: **Informational** — report the DP volume count observed on the in-scope file systems and
+  note that destinations may reside on file systems outside this review's scope. Never Fail on zero DP
+  volumes.
+- **Recommendation**: If DR is required, confirm (outside this review) that each production volume has a
+  SnapMirror relationship whose destination lives on a separate file system / Region / account.
 - **Fields**: `fileSystemId`, `rwVolumeCount`, `dpVolumeCount`, `status`, `severity`
 
 ### BKP-07 — File-system automatic backups enabled

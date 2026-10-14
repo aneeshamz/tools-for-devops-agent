@@ -13,7 +13,7 @@ description: >
   "assess my ONTAP file system".
 metadata:
   author: "Aneesh Varghese (aneeshamz)"
-  version: "1.5.0"
+  version: "1.6.0"
   aws-devops-agent-skills.agent-types: "Chat tasks, Evaluation"
   aws-devops-agent-skills.aws-services: "Amazon FSx for NetApp ONTAP, Amazon CloudWatch, AWS Backup, Amazon EC2"
   aws-devops-agent-skills.technical-domains: "Storage"
@@ -71,7 +71,7 @@ reference files for reliable loading:
 
 | Pillar | Checks |
 |--------|--------|
-| **Backup** | Backup configured · Recovery points exist · SnapMirror (DP) relationships exist · FS automatic backups enabled · Backup size growth trend · Backup staleness · Automatic backup daily cadence |
+| **Backup** | Backup configured · Recovery points exist · SnapMirror (DP) relationships (informational) · FS automatic backups enabled · Backup size growth trend · Backup staleness · Automatic backup daily cadence |
 | **Observability** | CloudWatch alarms configured · Alarms on all file systems · No FSx alarms in ALARM state |
 | **Operations** | Cost-allocation tags · Unused volumes identified · Maintenance window aligned · Consistent maintenance windows · Storage efficiency enabled · Snapshot policies on production volumes · Deployment type matches HA requirements · Active Directory configured on SVM · Volume & SVM tag audit · Per-volume capacity utilization · Aged snapshots |
 | **Performance** | CPU < 85% · Throughput config matches workload · IOPS not over-provisioned · IOPS util < 80% · SSD capacity < 80% · Volume tiering policies appropriate · Aggregate workload balanced · FlexGroup constituent balance · Network path optimized · Client throughput nominal · Filesystem generation appropriate · Capacity-pool tiering only for archive · HA pair count sufficient · FlexClone not on tiered parent · No unexpected capacity-pool reads · Cache hit ratio · Latency monitoring |
@@ -217,5 +217,6 @@ Public AWS APIs only, via `use_aws`: `fsx` (`describe-file-systems`, `describe-v
 `describe-storage-virtual-machines`, `describe-snapshots`, `describe-backups`, `list-tags-for-resource`),
 `cloudwatch` (`describe-alarms`, `get-metric-data`, `list-metrics`), `backup`
 (`list-protected-resources`, `list-recovery-points-by-resource`), and `ec2`
-(`describe-security-groups`, `describe-subnets`, `describe-route-tables`). No ONTAP CLI, no data-plane
+(`describe-security-groups`, `describe-network-interfaces`, `describe-subnets`, `describe-route-tables`).
+No ONTAP CLI, no data-plane
 calls, no non-AWS tooling — the skill is self-contained on the DevOps Agent's cloud-source IAM role.

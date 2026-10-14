@@ -19,17 +19,23 @@
 ### OPS-02 — Unused volumes identified
 
 - **Severity**: Medium
-- **API**: `fsx describe-volumes` + `cloudwatch get-metric-data` (`DataReadOperations`,
-  `DataWriteOperations` per `VolumeId` over a trailing window)
-- **Logic**: Flag volumes with no (or negligible) read/write operations over the window. Evaluate every
-  volume including the SVM root; **tag** the root-volume row `SVM root (JunctionPath=/)`.
-- **Status**: Pass — volume shows recent I/O. Warning — negligible I/O. Fail — no I/O over the window.
-  No datapoints returned ⇒ **Not evaluated — no datapoints** (do not treat absence of the metric as "no
-  I/O").
-- **Recommendation (Fail/Warning)**: Audit and remove unused data volumes to reduce cost and sprawl.
-  **Never recommend removing the SVM root volume** (`JunctionPath=/`) — it cannot be deleted; for it,
-  report the observed I/O without a removal recommendation.
-- **Fields**: `volumeId`, `isSvmRoot`, `readOps`, `writeOps`, `status`, `severity`
+- **API**: `fsx describe-volumes` (read `OntapVolumeType`) + `cloudwatch get-metric-data`
+  (`DataReadOperations`, `DataWriteOperations` per `VolumeId` over a trailing window)
+- **Scope**: The unused/removal signal applies to **RW data volumes only**. The **SVM root**
+  (`JunctionPath=/`) and **`DP` (SnapMirror destination)** and **`LS` (load-sharing mirror)** volumes
+  are evaluated and reported but are **never** flagged "unused" or recommended for removal — they carry
+  little or no direct client I/O **by design** (DP volumes receive replicated data; LS mirrors serve
+  reads). Tag their rows (`SVM root`, `DP — SnapMirror destination`, `LS — load-sharing mirror`).
+- **Logic**: For in-scope **RW data** volumes, flag volumes with no (or negligible) read/write
+  operations over the window.
+- **Status**: Pass — RW data volume shows recent I/O. Warning — negligible I/O on an RW data volume.
+  Fail — no I/O on an RW data volume over the window. Root / `DP` / `LS` volumes ⇒ **Informational**
+  (observed I/O reported, no unused finding). No datapoints returned ⇒ **Not evaluated — no datapoints**
+  (do not treat absence of the metric as "no I/O").
+- **Recommendation (Fail/Warning)**: Audit and remove unused **RW data** volumes to reduce cost and
+  sprawl. **Never recommend removing the SVM root, a `DP` SnapMirror destination, or an `LS` mirror** —
+  deleting a DP destination breaks the replication/DR relationship.
+- **Fields**: `volumeId`, `ontapVolumeType`, `isSvmRoot`, `readOps`, `writeOps`, `status`, `severity`
 
 ### OPS-03 — Maintenance window aligned
 
@@ -127,13 +133,16 @@
 ### OPS-11 — Aged snapshots
 
 - **Severity**: Low
-- **API**: `fsx describe-snapshots` (read `CreationTime`)
-- **Logic**: For each snapshot compute `ageDays = now − CreationTime`; flag if `ageDays > 90`
-  (candidate cleanup to reclaim space and reduce sprawl). Derive age from each snapshot's own
-  `CreationTime` — do not synthesize a 90-days-ago cutoff timestamp.
-- **Status**: Pass — no snapshots older than 90 days. Warning — aged snapshots present.
-- **Recommendation (Warning)**: Review and delete aged snapshots that are no longer needed; confirm
-  retention policy aligns with the recovery requirement.
-- **Fields**: `volumeId`, `snapshotId`, `ageDays`, `status`, `severity`
+- **API**: *Not available via public API for ONTAP.* `fsx describe-snapshots` returns snapshots for FSx
+  for **OpenZFS** (and Windows), **not** FSx for NetApp ONTAP volume snapshots — on ONTAP it returns
+  nothing. ONTAP snapshots are governed by snapshot **policies**, which the public API does expose (see
+  OPS-06).
+- **Logic**: Individual ONTAP snapshot ages are not enumerable from any public AWS API, so snapshot
+  sprawl cannot be measured this way.
+- **Status**: **Not evaluated — not available via public API** (ONTAP snapshots are not returned by
+  `fsx describe-snapshots`). Never report "no aged snapshots" as a Pass.
+- **Recommendation**: Review snapshot retention through the volume's snapshot **policy** (OPS-06);
+  assess individual snapshot age from the ONTAP CLI/console if snapshot reclamation is a concern.
+- **Fields**: `volumeId`, `status`, `severity`
 
 ---

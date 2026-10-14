@@ -76,7 +76,7 @@ All calls are read-only `Describe*` / `List*` / `Get*` control-plane and CloudWa
 | `fsx` | `describe-file-systems`, `describe-volumes`, `describe-storage-virtual-machines`, `describe-snapshots`, `describe-backups`, `list-tags-for-resource` | File system, SVM, and volume configuration and inventory |
 | `cloudwatch` | `describe-alarms`, `get-metric-data`, `list-metrics` | Alarm posture and `AWS/FSx` performance / capacity metrics |
 | `backup` | `list-protected-resources`, `list-recovery-points-by-resource` | AWS Backup coverage and recovery-point history |
-| `ec2` | `describe-security-groups`, `describe-subnets`, `describe-route-tables` | Network port access and routing posture |
+| `ec2` | `describe-security-groups`, `describe-network-interfaces`, `describe-subnets`, `describe-route-tables` | Network port access, security-group resolution (FSx attaches SGs to its ENIs — resolve via `NetworkInterfaceIds` → `describe-network-interfaces` → `Groups`), and routing posture |
 
 ### `AWS/FSx` metrics used (confirm names exactly — public FSx for ONTAP metrics)
 
@@ -84,11 +84,11 @@ All calls are read-only `Describe*` / `List*` / `Get*` control-plane and CloudWa
 |--------|-----------|---------|
 | `CPUUtilization` (%) | `FileSystemId` | PERF-01 |
 | `FileServerDiskThroughputUtilization` (%), `NetworkThroughputUtilization` (%) | `FileSystemId` | PERF-02, PERF-15 |
-| `FileServerDiskIopsUtilization` (%) | `FileSystemId` | PERF-04 |
+| `FileServerDiskIopsUtilization` (%), `DiskIopsUtilization` (%) | `FileSystemId` | PERF-04 (file-server/throughput-tier limit vs provisioned SSD disk IOPS limit; read p95/sustained, not `Maximum`) |
 | `StorageCapacityUtilization` (%) | `FileSystemId` | PERF-05 (primary/SSD-tier utilization) |
 | `StorageCapacity`, `StorageUsed` (bytes, detailed) | `FileSystemId`, `StorageTier` (`SSD` \| `StandardCapacityPool`), `DataType` | PERF-05 fallback (compute `StorageUsed{SSD}` ÷ `StorageCapacity{SSD}`) |
 | `DataReadBytes`, `DataWriteBytes`, `DataReadOperations`, `DataWriteOperations` | `FileSystemId` (+ `VolumeId` for per-volume) | OPS-02, PERF-15 |
-| `CapacityPoolReadBytes` | `FileSystemId` (+ `VolumeId`) | PERF-21 |
+| `CapacityPoolReadBytes` | `FileSystemId` (+ `VolumeId`) | PERF-17, PERF-21 |
 | `FileServerCacheHitRatio` (%) | `FileSystemId` | PERF-22 |
 | `DataReadOperationTime`, `DataWriteOperationTime`, `MetadataOperationTime` (seconds) | `FileSystemId` (+ `VolumeId`) | PERF-23 (latency = op-time ÷ ops × 1000 ms) |
 | `StorageUsed` (bytes, detailed) | `FileSystemId`, `VolumeId`, `StorageTier`, `DataType` | OPS-10 (per-volume used ÷ volume `SizeInMegabytes`) |
